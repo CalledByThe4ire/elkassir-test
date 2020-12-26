@@ -19,8 +19,8 @@ export const api = {
 
     return res;
   },
-  async fetchComments(userId) {
-    const res = await getResource(`/comments?postId=${userId}`);
+  async fetchComments(postId) {
+    const res = await getResource(`/comments?postId=${postId}`);
 
     return res;
   },

@@ -5,56 +5,96 @@ import { api } from './api';
 import watch from './watcher';
 import { getDiff } from './utils';
 
-export default async () => {
-  const state = {
-    users: [],
-    posts: [],
-    comments: [],
-    state: 'idle', // idle, processing, failed
-    valid: true,
-    error: null,
-  };
+const fetchUsers = async (watchedState) => {
+  watchedState.status = 'processing';
 
-  const fetchUsers = async (watchedState) => {
-    watchedState.state = 'processing';
+  try {
+    const users = await api.fetchUsers();
 
-    try {
-      const users = await api.fetchUsers();
+    if (!watchedState.valid) {
+      watchedState.valid = true;
+      watchedState.error = null;
+    }
+
+    watchedState.users = [...watchedState.users, ...users];
+    watchedState.status = 'idle';
+  } catch (err) {
+    watchedState.status = 'failed';
+    watchedState.valid = false;
+    watchedState.error = err.message;
+
+    console.error(err.message);
+  }
+};
+
+const fetchPosts = async (watchedState) => {
+  try {
+    const promises = watchedState.users.length !== 0
+      && watchedState.users.map(async (user) => {
+        watchedState.status = 'processing';
+
+        const data = await api.fetchPosts(user.id);
+
+        return data;
+      });
+
+    const posts = await Promise.all(promises);
+
+    if (posts.length !== 0) {
+      watchedState.posts = [
+        ...watchedState.posts,
+        ...posts.map((items) => items[0]),
+      ];
 
       if (!watchedState.valid) {
         watchedState.valid = true;
         watchedState.error = null;
       }
-
-      watchedState.users = [...state.users, ...users];
-      watchedState.state = 'idle';
-    } catch (err) {
-      watchedState.state = 'failed';
-      watchedState.valid = false;
-      watchedState.error = err.message;
-
-      console.error(err.message);
     }
-  };
 
-  const fetchPosts = async (watchedState) => {
-    try {
-      const promises = watchedState.users.length !== 0
-        && watchedState.users.map(async (user) => {
-          watchedState.state = 'processing';
+    watchedState.status = 'idle';
+  } catch (err) {
+    watchedState.status = 'failed';
+    watchedState.valid = false;
+    watchedState.error = err.message;
 
-          const data = await api.fetchPosts(user.id);
+    console.error(err.message);
+  }
+};
 
-          return data;
-        });
+export const fetchComments = async (watchedState, postId = null) => {
+  try {
+    if (postId) {
+      watchedState.status = 'processing';
 
-      const posts = await Promise.all(promises);
+      const postCommentsIndex = watchedState.comments.findIndex(
+        (comments) => comments[0].postId === postId,
+      );
 
-      if (posts.length !== 0) {
-        watchedState.posts = [
-          ...watchedState.posts,
-          ...posts.map((post) => post.find((p) => p)),
-        ];
+      const oldPostComments = watchedState.comments[postCommentsIndex];
+
+      const newPostComments = await api.fetchComments(postId);
+
+      const postCommentsDiff = getDiff(oldPostComments, newPostComments);
+
+      if (postCommentsDiff.length !== 0) {
+        if (postCommentsIndex === 0) {
+          watchedState.comments = [
+            [...postCommentsDiff, ...oldPostComments],
+            ...watchedState.comments.slice(postCommentsIndex + 1),
+          ];
+        } else if (postCommentsIndex === watchedState.comments.length - 1) {
+          watchedState.comments = [
+            ...watchedState.comments.slice(0, postCommentsIndex),
+            [...postCommentsDiff, ...oldPostComments],
+          ];
+        } else {
+          watchedState.comments = [
+            ...watchedState.comments.slice(0, postCommentsIndex - 1),
+            [...postCommentsDiff, ...oldPostComments],
+            ...watchedState.comments.slice(postCommentsIndex + 1),
+          ];
+        }
 
         if (!watchedState.valid) {
           watchedState.valid = true;
@@ -62,80 +102,69 @@ export default async () => {
         }
       }
 
-      watchedState.state = 'idle';
-    } catch (err) {
-      watchedState.state = 'failed';
-      watchedState.valid = false;
-      watchedState.error = err.message;
+      watchedState.status = 'idle';
+    } else {
+      const promises = watchedState.posts.length !== 0
+        && watchedState.posts.map(async (post) => {
+          watchedState.status = 'processing';
 
-      console.error(err.message);
-    }
-  };
+          const data = await api.fetchComments(post.id);
 
-  const fetchComments = async (watchedState, postId = null) => {
-    try {
-      if (postId) {
-        watchedState.state = 'processing';
+          return data;
+        });
 
-        const postCommentsIndex = watchedState.comments.findIndex(
-          (comments) => comments[0].postId === postId,
-        );
+      const comments = await Promise.all(promises);
 
-        const oldPostComments = watchedState.comments[postCommentsIndex];
+      if (comments.length !== 0) {
+        watchedState.comments = [...watchedState.comments, ...comments];
 
-        const newPostComments = await api.fetchComments(postId);
-
-        const postCommentsDiff = getDiff(oldPostComments, newPostComments);
-
-        if (postCommentsDiff.length !== 0) {
-          watchedState.comments[postCommentsIndex] = [
-            ...postCommentsDiff,
-            ...watchedState.comments[postCommentsIndex],
-          ];
-
-          if (!watchedState.valid) {
-            watchedState.valid = true;
-            watchedState.error = null;
-          }
-        }
-
-        watchedState.state = 'idle';
-      } else {
-        const promises = watchedState.posts.length !== 0
-          && watchedState.posts.map(async (post) => {
-            watchedState.state = 'processing';
-
-            const data = await api.fetchComments(post.userId);
-
-            return data;
-          });
-
-        const comments = await Promise.all(promises);
-
-        if (comments.length !== 0) {
-          watchedState.comments = [...watchedState.comments, ...comments];
-
-          if (!watchedState.valid) {
-            watchedState.valid = true;
-            watchedState.error = null;
-          }
+        if (!watchedState.valid) {
+          watchedState.valid = true;
+          watchedState.error = null;
         }
       }
-
-      watchedState.state = 'idle';
-    } catch (err) {
-      watchedState.state = 'failed';
-      watchedState.valid = false;
-      watchedState.error = err.message;
-
-      console.error(err.message);
     }
-  };
 
-  const fetchAll = async (watchedState) => {
-    await fetchUsers(watchedState);
-    await fetchPosts(watchedState);
-    await fetchComments(watchedState);
+    watchedState.status = 'idle';
+  } catch (err) {
+    watchedState.status = 'failed';
+    watchedState.valid = false;
+    watchedState.error = err.message;
+
+    console.error(err.message);
+  }
+};
+
+const fetchAll = async (watchedState) => {
+  await fetchUsers(watchedState);
+  await fetchPosts(watchedState);
+  await fetchComments(watchedState);
+};
+
+const handleTableClick = async (evt, watchedState) => {
+  evt.preventDefault();
+
+  if (evt.target.tagName !== 'TD') {
+    return;
+  }
+
+  const { userId } = evt.target.closest('[data-user-id]').dataset;
+
+  const { id: postId } = watchedState.posts.find(
+    (post) => post.userId === Number(userId),
+  );
+
+  await fetchComments(watchedState, postId);
+};
+
+export default async () => {
+  const state = {
+    users: [],
+    posts: [],
+    comments: [],
+    status: 'idle',
+    valid: true,
+    error: null,
   };
 
   const table = document.querySelector('[data-table="table"]');
@@ -145,10 +174,6 @@ export default async () => {
   document.addEventListener('DOMContentLoaded', async () => {
     await fetchAll(watchedState);
 
-    console.log(state);
-  });
-
-  table.addEventListener('click', (evt) => {
-    evt.preventDefault();
+    table.addEventListener('click', (evt) => handleTableClick(evt, watchedState));
   });
 };
