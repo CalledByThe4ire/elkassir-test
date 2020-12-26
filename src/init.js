@@ -138,11 +138,17 @@ export default async () => {
     await fetchComments(watchedState);
   };
 
-  const watchedState = watch(state);
+  const table = document.querySelector('[data-table="table"]');
+
+  const watchedState = watch(state, table);
 
   document.addEventListener('DOMContentLoaded', async () => {
     await fetchAll(watchedState);
 
     console.log(state);
+  });
+
+  table.addEventListener('click', (evt) => {
+    evt.preventDefault();
   });
 };
