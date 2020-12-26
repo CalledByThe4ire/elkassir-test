@@ -10,7 +10,7 @@ export default (initialState, element) => {
         /* eslint-disable-next-line */
         const tableBody = [...new Array(users.length)]
           .map(
-            (item, index) => `<tr style="cursor: pointer;"><td><span class="font-weight-bold">${users[index].name}</span></td><td>${posts[index].title}</td><td>${comments[index].length}</td></tr>`,
+            (item, index) => `<tr data-user-id="${users[index].id}" style="cursor: pointer;"><td><span class="font-weight-bold">${users[index].name}</span></td><td>${posts[index].title}</td><td>${comments[index].length}</td></tr>`,
           )
           .join('\n');
 
