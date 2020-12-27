@@ -13,3 +13,6 @@ make install
 
 ```sh
 make develop
+```
+
+## [Live Demo](https://elkassir-test-project.vercel.app/)
