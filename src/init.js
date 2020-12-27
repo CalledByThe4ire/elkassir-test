@@ -65,6 +65,7 @@ const fetchPosts = async (watchedState) => {
 export const fetchComments = async (watchedState, postId = null) => {
   try {
     if (postId) {
+      watchedState.meta = postId;
       watchedState.status = 'processing';
 
       const postCommentsIndex = watchedState.comments.findIndex(
@@ -103,6 +104,7 @@ export const fetchComments = async (watchedState, postId = null) => {
       }
 
       watchedState.status = 'idle';
+      watchedState.meta = null;
     } else {
       const promises = watchedState.posts.length !== 0
         && watchedState.posts.map(async (post) => {
@@ -165,6 +167,7 @@ export default async () => {
     status: 'idle',
     valid: true,
     error: null,
+    meta: null,
   };
 
   const table = document.querySelector('[data-table="table"]');
